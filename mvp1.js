@@ -90,7 +90,7 @@ if (Meteor.isClient) {
 	
 	//for testing purposes: this button removes the recipe from the database
 	Template.entitylist.events({
-	  'click button[class="test"]' : function() {
+	  'click button[class="button-remove"]' : function() {
 		  Entities.remove(this._id);			
 		}
 	});

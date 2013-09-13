@@ -32,7 +32,7 @@ html,body {
 	margin-top: -10%;
 }
 
-#remove-button {
+.button-remove {
 	background: none;
 	border: 0px;
 }
