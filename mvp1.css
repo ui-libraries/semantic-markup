@@ -76,7 +76,8 @@ h1 {
   -o-transition: 0.25s;
   transition: 0.25s;
   -webkit-backface-visibility: hidden;
-  
+  margin: 3px;
+
 }
 
 .btn:hover,
