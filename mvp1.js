@@ -3,131 +3,159 @@
 //Doctext allows you to specify formatting options for document texts
 
 Doctext = function(doc) {
-	_.extend(this, doc);			
+  _.extend(this, doc);			
 }
 
 Doctext.prototype = {
   constructor: Doctext,		
+}
 
-  formatText: function(format) {
-	  switch(format){
-	  				
-	    case "cookbook":
-	    	var myTags = ["recipe"];
-			  var myText = addSpanTags(this.text, myTags);
-		    return myText;
-		    
-		  default:
-			  return this.text;
-	  }
-	}
+//Entitytext allows you to specify formatting options for entity texts
+
+Entitytext = function(entity) {
+  _.extend(this, entity);			
+}
+
+Entitytext.prototype = {
+  constructor: Entitytext,	
+  
+    formatText: function(format) {		
+      switch(format) {		
+											
+        case "teaser":
+          var myText = this.text;
+          myText = removeAllTags(myText);
+          var longTextArray = myText.split(" ");
+          if (longTextArray.length > 5){
+            var shortTextArray = longTextArray.slice(0, 5);
+            myText = shortTextArray.join(" ") + "...";    
+          }
+          return myText;
+								 
+        default: 
+          return this.text;
+    }
+  }
 }
 
 Docs = new Meteor.Collection("docs", {
   transform: function(doc){
-  	return new Doctext(doc);			
+    return new Doctext(doc);			
   }
 });
 
-Entities = new Meteor.Collection("entities");
+Entities = new Meteor.Collection("entities", {
+  transform: function(entity){
+    return new Entitytext(entity);
+  }
+});
 
 Meteor.startup(function() {
 
-})
+});
 
 /********** Server **********/
 
 if (Meteor.isServer) {
-				
-  	Meteor.startup(function () {
-	  Docs.remove({});
-    Docs.insert({
+			
+  Meteor.startup(function () {
+    Docs.remove({});	
+      Docs.insert({
 	    title: "Ye Olde Cookbook",
 	    creator: "Chef Boyardee",
-	    text: "<recipe>Spaghetti-o's. Open the can. Heat it up.</recipe> Toast. Put bread in the toaster. Put jam on top. Cereal. Put cereal in bowl. Add milk."
+	    text: "Spaghetti-o's. Open the can. Heat it up. Toast. Put bread in the toaster. Put jam on top. Cereal. Put cereal in bowl. Add milk."
     });
     Entities.remove({});
-    /* Entities.insert({
-		  text: "Spaghetti-o's. Open the can. Heat it up."
-		}); */
   });	
 }
+
 
 /********** Client **********/
 
 if (Meteor.isClient) {
+
+  var recipeTag = new Tag("div", "recipe");
+  recipeTag.addAttribute("typeof", "schema:Recipe", "none");
+  recipeTag.addAttribute("about", "uidata:cookbooks_[timestamp]", "timestamp");
 						
   Template.doc.docs = function() {
-		return Docs.findOne();	
-  };
+    return Docs.findOne();
+  }
 
   Template.doc.events({
-    'click button[type="submit"]' : function() {
-      var newDoctext = addSemanticTag("recipe");
-      Docs.update(this._id, {
-        title: this.title,
-      	creator: this.creator,
-      	text: newDoctext
-      });
+     'click button[type="submit"]' : function() {
+      var newDoctext = addSemanticTag();
+      if(newDoctext) {
+        Docs.update(this._id, {$set: {'text': newDoctext}});
+      } else {
+        alert("Invalid selection");
+      }
     }
   });
   
   //for testing purposes: this button removes tags from the document text in the database
-  Template.doc.events({
+  /*Template.doc.events({
     'click button[class="test"]' : function() {
-      oldDoctext = "Spaghetti-o's. Open the can. Heat it up. Toast. Put bread in the toaster. Put jam on top. Cereal. Put cereal in bowl. Add milk."
-      Docs.update(this._id, {
-      	title: this.title,
-      	creator: this.creator,
-        text: oldDoctext
-      });
+      oldDoctext = "Spaghetti-o's. Open the can. Heat it up. Toast. Put bread in the toaster. Put jam on top. Cereal. Put cereal in bowl. Add milk.";
+      Docs.update(this._id, {$set: {'text': oldDoctext}});
     }
-  });
+  });*/
   
   Template.entitylist.entities = function() {
-  	return Entities.find(); 			
-	};
+    return Entities.find(); 			
+  }
 	
-	//for testing purposes: this button removes the recipe from the database
-	Template.entitylist.events({
-	  'click button[class="button-remove"]' : function() {
-		  Entities.remove(this._id);			
-		}
-	});
-  
+  //this button removes the recipe from the database
+  Template.entitylist.events({
+  'click button[class="button-remove"]' : function() {
+    Entities.remove(this._id);
+    var docId = document.getElementById("docId").innerHTML.trim();
+    var newDoctext = removeSemanticTag(this._id, "doctext");
+      Docs.update(docId, {$set: {'text': newDoctext}});
+    }
+  });
 }
 
 /********** Handle user selected text ***********/
 
-function addSemanticTag(tagName) {
-//this function takes a string that is the name for a semantic tag
-//it assumes that the user has selected a portion of the document text
-//it returns a string that is the document text with semantic tags surrounding
-//the user-selected text
+function addSemanticTag() {
+//this function returns a string that is the document text with semantic tags
+//surrounding the user-selected text
 				
   var selection = getUserSelection();
 
-  if(selection && isDoctext(selection)) {	
-  //user has hilighted text in the doctext region
+  //create new tag
+  var newTag = document.createElement("div");
+  newTag.appendChild(selection.cloneContents());
+  var tagContents = newTag.innerHTML;
   
-	  //create new tag	  
-    var newTag = document.createElement(tagName);	  
-	  newTag.appendChild(selection.extractContents());
-	  selection.insertNode(newTag);
-	  
-	  //get new entity text, remove span tags, and update Entities
-	  var newEntitytext = newTag.innerHTML;
-	  newEntitytext = removeSpanTags(newEntitytext);
-	  Entities.insert({
-		  text: newEntitytext
-		});
+  if(selection && isDoctext(selection) && !hasOuterTag(selection) && !hasInnerTag(tagContents)) {	
+  //user has hilighted text in the doctext region that has not already been hilighted
 
-	  //get new doc text, remove span tags, and update Docs
-	  var newDoctext = $("#doctext").html();
-	  newDoctext = removeSpanTags(newDoctext);
-	  newDoctext = removeEmptyTags(newDoctext, tagName);
-	  return newDoctext;
+    //insert new tag into DOM
+    selection.extractContents(); 
+    selection.insertNode(newTag);
+	  
+    //add to Entities database
+    var newEntityId = Entities.insert({
+      text: tagContents
+    });
+	  
+    //set attributes
+    newTag.setAttribute("id", newEntityId);
+    var attributes = recipeTag.getAttributes();
+    for (var i=0; i < attributes.length; i++) {
+      var name = attributes[i].getName();
+      var value = attributes[i].getValue();
+      newTag.setAttribute(name, value);
+    }
+
+    //update Docs
+    var newDoctext = $("#doctext").html();
+    newDoctext = removeEmptyTags(newDoctext, recipeTag.getName());
+    return newDoctext;
   } 
+  return null;
 }
 			
 function getUserSelection() {
@@ -135,31 +163,30 @@ function getUserSelection() {
 //if and only if the user has hilighted at least one character
 
   if(window.getSelection) {
-	  //for Mozilla, Safari, and Opera, assign a Selction object to userSelection
-	  var userSelection = window.getSelection();
-	  var textString = userSelection.toString();
+  //for Mozilla, Safari, and Opera, assign a Selction object to userSelection
+    var userSelection = window.getSelection();
+    var textString = userSelection.toString();
 
-	  if (textString.length > 0) {
-		  //convert userSelection to Range object and return it
-		  userSelection = getRangeObject(userSelection);
-		  return userSelection;
-	  } else {
-		  //user has not hilighted any text
-		  return null;
-	  }
-	
+    if (textString.length > 0) {
+    //convert userSelection to Range object and return it
+      userSelection = getRangeObject(userSelection);
+      return userSelection;
+    } else {
+    //user has not hilighted any text
+      return null;
+    }	
 	
   } else if (document.selection) {
-	  //older versions of IE, assign a Text Range object to userSelection
-	  var userSelection = document.selection.createRange();
-	  var textString = userSelection.text;
+  //older versions of IE, assign a Text Range object to userSelection
+    var userSelection = document.selection.createRange();
+    var textString = userSelection.text;
 
-	  if(textString.length > 0) {
-		  return userSelection;
-	  } else {
-		  //user has not hilighted any text
-		  return null;
-	  }
+    if(textString.length > 0) {
+      return userSelection;
+    } else {
+    //user has not hilighted any text
+      return null;
+    }
   }
   return null;
 }
@@ -169,12 +196,12 @@ function getRangeObject(selectionObject) {
   var range;
 
   if (selectionObject.getRangeAt) {
-	  range = selectionObject.getRangeAt(0);
+    range = selectionObject.getRangeAt(0);
   } else {  
-  	//Safari 1.3
-	  range = document.createRange();
-	  range.setStart(selectionObject.anchorNode,selectionObject.anchorOffset);
-	  range.setEnd(selectionObject.focusNode,selectionObject.focusOffset);
+  //Safari 1.3
+    range = document.createRange();
+    range.setStart(selectionObject.anchorNode,selectionObject.anchorOffset);
+    range.setEnd(selectionObject.focusNode,selectionObject.focusOffset);
   }
 
   return range;
@@ -188,14 +215,109 @@ function isDoctext(rangeObject) {
   var ancestors = $(parent).parents("#doctext");
 
   if (parent.id == "doctext" || ancestors.length > 0) {
-	  return true;
+    return true;
   }
   return false;
 }
 
+
+function hasOuterTag(rangeObject) {
+
+  var className = recipeTag.getClass();
+  var tagName = recipeTag.getName();
+  var parent = rangeObject.commonAncestorContainer;
+  var ancestors = $(parent).parents(tagName);
+  
+  if ($(parent).hasClass(className)) {
+    return true;
+  } else {
+  }
+  
+  for (var i=0; i < ancestors.length; i++) {
+    if ($(ancestors[i]).hasClass(className)) { 
+      return true;
+    } else {
+    }
+  }
+  return false;
+}
+
+function Tag(name, className) { 
+  
+  var name = name;
+  var className = className;
+  var attributes = [
+    new Attribute("class", className, "none")
+  ];
+
+  this.getName = function() {
+    return name;
+  }
+
+  this.getAttributes = function() {
+    return attributes;
+  }
+
+  this.getClass = function() {
+    return className;
+  }
+
+  this.addAttribute = function(name, rawValue, action) {
+    attributes.push(new Attribute(name, rawValue, action));
+  }
+}
+
+function Attribute(name, rawValue, action) {
+  
+  var name = name;
+  var rawValue = rawValue;
+  var action = action;
+  
+  this.getName = function() {
+    return name;
+  }
+
+  this.getValue = function() {
+    var myValue = rawValue;
+    if(action != "none") {
+      switch (action) {
+        case "timestamp":
+          return timestamp(myValue);
+        default:
+          return myValue;
+      }
+    } 
+    return myValue;
+  }
+
+  function timestamp(myValue) {
+  //this function takes a string myValue
+  //it replaces the substring "[uid]" with a unique id string  
+    
+    var timestamp = Date.now().toString();
+    return myValue.replace("[timestamp]", timestamp);
+  }
+}
+
+function hasInnerTag(string) {
+//this function takes a string and the name of a tag
+//it returns true if the string contains neither and opening nor closing tag
+//of the given name
+
+  var tagName = recipeTag.getName();
+  var className = recipeTag.getClass();
+				
+  var regexp1 = new RegExp("<" + tagName + "[^>]*class=\"[^\"]*" + className); 
+  
+  if (string.search(regexp1) != -1) {
+    return true;							
+  }
+  return false;			
+}
+
 /********** Add and remove tags **********/
 
-function addSpanTags(string, tags){
+/*function addSpanTags(string, tags){
 //this function takes a string and a array of xml tags
 //it assumes that the string represents well-formed xml
 //it returns the string with span tags nested inside the xml tags
@@ -222,7 +344,28 @@ function addSpanTags(string, tags){
     );
   }
   return string;
-}
+}*/
+
+
+/*function addClass(string, identifier, classValue) {
+  var regexp1 = new RegExp("(<[^>]*" + identifier + ")", "gi");
+
+  string = string.replace( 
+    regexp1,
+    function($1) {
+      return ($1 + " class=\"" + classValue + "\"");
+    }
+  );
+  return string;
+}*/
+
+/*function removeClass(string, classValue) {
+
+  var regexp1 = new RegExp("class=\"" + classValue + "\"", "gi");
+  string = string.replace(regexp1, "");
+
+  return string;
+}*/
 
 
 function removeSpanTags(string) {
@@ -242,9 +385,33 @@ function removeEmptyTags(string, tagName) {
 //it retruns the string with any instances of empty tags of the given tagname 
 //removed
 
-	var regexp1 = new RegExp("<" + tagName + "><\/" + tagName + ">", "gi");
-	string = string.replace(regexp1, "");
-	return string;
+  var regexp1 = new RegExp("<" + tagName + "><\/" + tagName + ">", "gi");
+  string = string.replace(regexp1, "");
+  return string;
 }
 
+function removeSemanticTag(tagId, containerId) {
+//this function takes an id for a semantic tag and the id of its container
+//it returns the string with the tag of the given id removed and all span tags
+//removed
 
+  //replace the semantic tag of the given tagId with a span tag
+  var node = document.getElementById(tagId);
+  var parent = node.parentNode;
+  var newNode = document.createElement("span");
+  newNode.innerHTML = node.innerHTML;
+  parent.replaceChild(newNode, node);
+
+  //get html of container element and remove all span tags
+  var string = document.getElementById(containerId).innerHTML;
+  string = removeSpanTags(string);
+
+  return string;
+}
+
+function removeAllTags(string) {
+//this function takes a string and removes all tags
+  var tmp = document.createElement("span");
+  tmp.innerHTML = string;
+  return tmp.textContent;
+}

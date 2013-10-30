@@ -20,16 +20,19 @@
 
 <template name="doc">
   <div class="span6 content-box">
-    {{#with docs}}  
+    {{#with docs}} 
+      <div id="docId" style="display:none;">
+        {{_id}}
+      </div> 
       <div id="docmetadata"><h4>{{title}} by {{creator}}</h2></div>
       <div class="row-fluid">
         <div id="doctext" class="span6">
-          {{{formatText "cookbook"}}}
+          {{{text}}}
         </div>
         <br/>
         <div id="buttons" class="span6">
           <button type="submit" class="btn btn-info" id="recipe-button">Add to recipe list</button>
-          <button class="test btn btn-info">Remove all tags</button>
+          <!--<button class="test btn btn-info">Remove all tags</button>-->
         </div>
       </div>        
     {{/with}}
@@ -43,7 +46,7 @@
     {{#if entities}}
       <ul>
         {{#each entities}}
-          <li>{{{text}}} <button class="button-remove"><i class="icon-remove icon-white"></i></button></li>        
+          <li>{{{formatText "teaser"}}} <button class="button-remove"><i class="icon-remove icon-white">Remove</i></button></li>        
         {{/each}}
       </ul>
     {{/if}}
