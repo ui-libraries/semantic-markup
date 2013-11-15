@@ -1,0 +1,34 @@
+<html>
+  <head>
+  </head>
+  <body>
+
+      <div id="container">
+        example implementation of semantic.js
+        <div>
+            <h2>not semantic</h2>
+            <div id="original">
+                <p>why hello there</p>
+            </div>
+        </div>
+
+        <div>
+            <h2>semantic</h2>
+            <div id="tagged" />
+        </div>
+        
+      </div>
+
+      <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+      <script src="semantic.js"></script>
+
+      <script>
+        $(document).ready(function() {
+            $('#tagged').html(
+              semantic.strong( $('#original') )
+            );
+        })
+      </script>
+
+  </body>
+</html>
